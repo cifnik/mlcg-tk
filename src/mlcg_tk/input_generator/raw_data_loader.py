@@ -160,17 +160,6 @@ class CATH_ext_loader(DatasetLoader):
     """
 
     def get_traj_top(self, name: str, pdb_fn: str):
-        """
-        For a given CATH domain name, returns a loaded MDTraj object at the input resolution
-        (generally atomistic) as well as the dataframe associated with its topology.
-
-        Parameters
-        ----------
-        name:
-            Name of input sample
-        pdb_fn:
-            Path to pdb structure file
-        """
         pdb_fns = glob(pdb_fn.format(name))
         pdb = md.load(pdb_fns[0])
         aa_traj = pdb.atom_slice(
@@ -187,50 +176,116 @@ class CATH_ext_loader(DatasetLoader):
         batch: Optional[int] = None,
         n_batches: Optional[int] = 1,
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        For a given CATH domain name, returns np.ndarray's of its coordinates and forces at
-        the input resolution (generally atomistic)
 
-        Parameters
-        ----------
-        base_dir:
-            Path to coordinate and force files
-        name:
-            Name of input sample
-        """
-        if n_batches > 1:
-            raise NotImplementedError(
-                "mol_num_batches can only be used for single-protein datasets for now"
-            )
-        traj_dirs = glob(os.path.join(base_dir, f"group_*/{name}_*/"))
+        traj_dirs = glob(os.path.join(base_dir, f"{name}/"))
+
         all_coords = []
         all_forces = []
+
         for traj_dir in tqdm(traj_dirs):
-            traj_coords = []
-            traj_forces = []
-            fns = glob(os.path.join(traj_dir, "prod_out_full_output/*.npz"))
+            fns = glob(os.path.join(traj_dir, "production_full_output/*.npz"))
             fns.sort(key=lambda file: int(file.split("_")[-2]))
+            fns = np.array(fns)
+
+            if n_batches > 1:
+                assert batch is not None, "batch id must be set if more than 1 batch"
+                chunk_ids = chunker(
+                    [i for i in range(len(fns))], n_batches=n_batches
+                )
+                fns = fns[np.array(chunk_ids[batch])]
+
             last_parent_id = None
+
             for fn in fns:
                 np_dict = np.load(fn, allow_pickle=True)
+
                 current_id = np_dict["id"]
                 parent_id = np_dict["parent_id"]
-                if parent_id is not None:
+
+                if parent_id is not None and last_parent_id is not None:
                     assert parent_id == last_parent_id
-                traj_coords.append(np_dict["coords"])
-                traj_forces.append(np_dict["Fs"])
+
+                all_coords.append(np_dict["coords"][::stride])
+                all_forces.append(np_dict["Fs"][::stride])
+
                 last_parent_id = current_id
-            traj_full_coords = np.concatenate(traj_coords)
-            traj_full_forces = np.concatenate(traj_forces)
-            if traj_full_coords.shape[0] != 25000:
-                continue
-            else:
-                all_coords.append(traj_full_coords[::stride])
-                all_forces.append(traj_full_forces[::stride])
+
+        if len(all_coords) == 0:
+            raise RuntimeError(
+                f"No trajectory data found for {name} in {base_dir}"
+            )
+
         full_coords = np.concatenate(all_coords)
         full_forces = np.concatenate(all_forces)
+
         return full_coords, full_forces
 
+
+class NANOBODY_loader(DatasetLoader):
+    """
+    Loader object for extended dataset of CATH domain proteins
+    """
+
+    def get_traj_top(self, name: str, pdb_fn: str):
+        pdb_fns = glob(pdb_fn.format(name))
+        pdb = md.load(pdb_fns[0])
+        aa_traj = pdb.atom_slice(
+            [a.index for a in pdb.topology.atoms if a.residue.is_protein]
+        )
+        top_dataframe = aa_traj.topology.to_dataframe()[0]
+        return aa_traj, top_dataframe
+
+    def load_coords_forces(
+        self,
+        base_dir: str,
+        name: str,
+        stride: int = 1,
+        batch: Optional[int] = None,
+        n_batches: Optional[int] = 1,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+
+        traj_dirs = glob(os.path.join(base_dir, f"{name}/"))
+
+        all_coords = []
+        all_forces = []
+
+        for traj_dir in tqdm(traj_dirs):
+            fns = glob(os.path.join(traj_dir, "production_full_output/*.npz"))
+            fns.sort(key=lambda file: int(file.split("_")[-2]))
+            fns = np.array(fns)
+
+            if n_batches > 1:
+                assert batch is not None, "batch id must be set if more than 1 batch"
+                chunk_ids = chunker(
+                    [i for i in range(len(fns))], n_batches=n_batches
+                )
+                fns = fns[np.array(chunk_ids[batch])]
+
+            last_parent_id = None
+
+            for fn in fns:
+                np_dict = np.load(fn, allow_pickle=True)
+
+                current_id = np_dict["id"]
+                parent_id = np_dict["parent_id"]
+
+                if parent_id is not None and last_parent_id is not None:
+                    assert parent_id == last_parent_id
+
+                all_coords.append(np_dict["coords"][::stride])
+                all_forces.append(np_dict["Fs"][::stride])
+
+                last_parent_id = current_id
+
+        if len(all_coords) == 0:
+            raise RuntimeError(
+                f"No trajectory data found for {name} in {base_dir}"
+            )
+
+        full_coords = np.concatenate(all_coords)
+        full_forces = np.concatenate(all_forces)
+
+        return full_coords, full_forces
 
 class DIMER_loader(DatasetLoader):
     """

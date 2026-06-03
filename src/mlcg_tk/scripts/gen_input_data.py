@@ -139,6 +139,28 @@ def process_raw_dataset(
         del samples.cg_forces
         del samples.cg_map
         del samples.force_map
+        del samples.input_traj
+        del samples.top_dataframe
+
+        del aa_forces
+        del cg_coords
+        del cg_forces
+        del mapping
+
+        for attr in [
+            "cg_coords",
+            "cg_forces",
+            "cg_map",
+            "force_map",
+            "input_traj",
+            "top_dataframe",
+        ]:
+            if hasattr(samples, attr):
+                delattr(samples, attr)
+
+        import gc
+        gc.collect()
+
 
 
 def build_neighborlists(

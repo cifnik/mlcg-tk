@@ -219,7 +219,16 @@ def compute_hist_with_keys(
         if not mask.any():
             continue
 
+        if values.shape[0] != mask.shape[0]:
+            print(
+                f"Warning: trimming values/mask for:"
+                f"values={values.shape}, mask={mask.shape}"
+            )
+            n = min(values.shape[0], mask.shape[0])
+            values = values[:n]
+            mask = mask[:n]
         val = values[mask]
+
         if isinstance(weights, torch.Tensor):
             n_atomgroups = int(val.shape[0] / weights.shape[0])
             # hist, _ = torch.histogram(
@@ -296,6 +305,15 @@ def compute_hist_with_rep(
         if not mask.any():
             continue
 
+        
+        if values.shape[0] != mask.shape[0]:
+            print(
+                f"Warning: trimming values/mask: "
+                f"values={values.shape}, mask={mask.shape}"
+            )
+            n = min(values.shape[0], mask.shape[0])
+            values = values[:n]
+            mask = mask[:n]
         val = values[mask]
 
         if isinstance(weights, torch.Tensor):
