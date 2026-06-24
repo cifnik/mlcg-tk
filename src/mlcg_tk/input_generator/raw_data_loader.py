@@ -223,7 +223,7 @@ class CATH_ext_loader(DatasetLoader):
 
 class NANOBODY_loader(DatasetLoader):
     """
-    Loader object for extended dataset of CATH domain proteins
+    Loader object for extended dataset of Nanobody complexes 
     """
 
     def get_traj_top(self, name: str, pdb_fn: str):

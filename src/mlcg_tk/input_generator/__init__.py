@@ -3,6 +3,7 @@ from .raw_data_loader import (
     DatasetLoader,
     CATH_loader,
     CATH_ext_loader,
+    NANOBODY_loader,
     DIMER_loader,
     DIMER_ext_loader,
     Villin_loader,
